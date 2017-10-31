@@ -1,6 +1,8 @@
 #ifndef MYSH_COMMANDS_H_
 #define MYSH_COMMANDS_H_
 
+int do_launch(int argc, char** argv);
+int do_ls(int argc, char** argv);
 /**
   do_cd(argc, argv)
 
@@ -43,5 +45,5 @@ int validate_cd_argv(int argc, char** argv);
     Else return 0. (false)
 */
 int validate_pwd_argv(int argc, char** argv);
-
+int validate_ls_argv(int argc, char** argv);
 #endif // MYSH_COMMANDS_H_

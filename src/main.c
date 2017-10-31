@@ -14,6 +14,8 @@ int main()
   char** argv;
 
   while (1) {
+    
+    printf("\033[1;92mJino's Shell : \033[0m");
     fgets(buf, 8096, stdin);
 
     mysh_parse_command(buf, &argc, &argv);
@@ -28,10 +30,16 @@ int main()
       if (do_pwd(argc, argv)) {
         fprintf(stderr, "pwd: Invalid arguments\n");
       }
+    } else if (strcmp(argv[0], "ls") == 0 && argc == 1) {
+      if (do_ls(argc, argv)) {
+        fprintf(stderr, "ls: Invalid arguments\n");
+      }
     } else if (strcmp(argv[0], "exit") == 0) {
       goto release_and_exit;
     } else {
-      fprintf(stderr, "%s: command not found\n", argv[0]);
+        if (do_launch(argc, argv)){
+          fprintf(stderr, "Not executable.\n");
+        } 
     }
 release_and_continue:
     release_argv(argc, &argv);
