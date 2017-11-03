@@ -1,5 +1,6 @@
 #include "utils.h"
 
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,5 +32,7 @@ void mysh_parse_command(const char* command,
     *argc = 1;
     (*argv)[0] = (char*)malloc(1);
     (*argv)[0][0] = '\0';
+  }else if(*argc == 1){
+    (*argv)[1] = NULL;
   }
 }

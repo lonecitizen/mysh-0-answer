@@ -2,6 +2,7 @@
 #define MYSH_COMMANDS_H_
 
 int do_launch(int argc, char** argv);
+int do_launch_resol(char* buf, int argc, char** argv);
 int do_ls(int argc, char** argv);
 /**
   do_cd(argc, argv)

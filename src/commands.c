@@ -3,56 +3,84 @@
 
 #include <stdio.h>
 #include <string.h>
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <linux/limits.h>
 #include <dirent.h>
 #include <stdlib.h>
-
+#include <sys/wait.h>
 #include "commands.h"
+#include "utils.h"
 
 int do_launch(int argc, char** argv){
 
-  char curdir[PATH_MAX];
-  getcwd(curdir, PATH_MAX);
-  int argc2;
-  char** argv2;
-  char* resolution = strcat(curdir, argv[0]);
-  int temp;
-  mysh_parse_command(resolution, &argc2, &argv2); 
+//  char curdir[PATH_MAX];
+//  getcwd(curdir, PATH_MAX);
+
+//  char* PATH[5] = {"/usr/local/bin/", "/usr/bin/",
+//                 "/bin/", "/usr/sin/", "/sbin/"};
+  int status = 0;
+ //three different cases
+ //1. absolute path input = input
+  if(fork()==0){
+    status = execv(argv[0], argv);
+    if(status == -1){
+      exit(1);
+    }
+  }
+  
+  wait(&status);
+
+ //2. relative path input = currentDIR/input
+ //3. resolved path input = PATH[i]/input
+  if(status)
+    return 1;  
  
+  return 0;
+ 
+}
+int do_launch_resol(char* buf, int argc, char** argv){
 
-  if(fork() == 0){
-    temp = execv(argv[0], argv);
-    if (temp == -1){
-      if(fork() == 0){
-        temp = execv(argv2[0], argv2);
-        if(temp == -1)
-          exit(EXIT_FAILURE);
-      }
-      exit(EXIT_FAILURE);
+  char* PATH[5];
+
+  for(int i=0;i<5;i++){
+    PATH[i] = malloc(256);
+  }
+  
+  strcpy(PATH[0], "/usr/local/bin/");
+  strcpy(PATH[1], "/usr/bin/");
+  strcpy(PATH[2], "/bin/");
+  strcpy(PATH[3], "/usr/sbin/");
+  strcpy(PATH[4], "/sbin/");
+  
+  int status = 0;
+
+  for(int i=0; i<5;i++){
+    strcat(PATH[i], buf);
+    //printf("%s\n", PATH[i]); // debug
+  }
+  
+  for(int i=0; i<5; i++){
+    mysh_parse_command(PATH[i], &argc, &argv);
+    if(fork()==0){
+      status = execv(argv[0], argv);
+      if (status == -1)
+        exit(1);
+    } else {
+      wait(&status);
+
+      if(status == 0)
+        break;//if success
     }
   }
-      /*perror("execv");
-      exit(EXIT_FAILURE);
-      return -1;*/
-
-/*  wait();
-  if(fork() == 0 && temp == -1){
-    temp = execv(argv2[0], argv2);
-    if (temp == -1)
-      abort();
-  }*//*if(fork() == 0){
-    if(execv(argv2[0], argv2) == -1)
-    {
-      perror("execv");
-      exit(EXIT_FAILURE);
-      return -1;
-    }
+  for(int i = 0; i<5 ; i++){
+    free(PATH[i]);
   }
-  wait();*/
+ 
+  if(status)
+    return 1;
+
   return 0;
 }
 int do_ls(int argc, char** argv) {
@@ -88,9 +116,12 @@ int do_ls(int argc, char** argv) {
   return 0;
 }
 int do_cd(int argc, char** argv) {
-  if (!validate_cd_argv(argc, argv))
+  if (validate_cd_argv(argc, argv) == 0)
     return -1;
-
+  
+  if (validate_cd_argv(argc, argv) == 2)
+    return 0;
+ 
   if (chdir(argv[1]) == -1)
     return -1;
 
@@ -112,7 +143,7 @@ int do_pwd(int argc, char** argv) {
 }
 
 int validate_cd_argv(int argc, char** argv) {
-  if (argc != 2) return 0;
+
   if (strcmp(argv[0], "cd") != 0) return 0;
 
   struct stat buf;
