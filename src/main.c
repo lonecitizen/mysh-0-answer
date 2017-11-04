@@ -12,7 +12,8 @@ int main()
   char buf[8096];
   int argc;
   char** argv;
- 
+  int status = 0;
+  int count = 0;
   while (1) {
     
     printf("\033[1;92mJino's Shell $ \033[0m");
@@ -37,10 +38,20 @@ int main()
     } else if (strcmp(argv[0], "exit") == 0) {
       goto release_and_exit;
     } else {
-      if (do_launch(argc, argv)){
-        if (do_launch_resol(buf, argc, argv))
+      do_launch(argc, argv);
+      wait(&status);
+      if(status){
+        do_launch_resol(buf, argc, argv);
+        do{
+          wait(&status);
+          if(status)
+            count++;
+          else break;
+        }while(count<6);
+        if(count == 6)
           fprintf(stderr, "Process creation failed\n");
       }
+      count = 0;
       goto release_and_continue;
     }
 release_and_continue:

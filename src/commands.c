@@ -1,6 +1,7 @@
 #define _BSD_SOURCE 1
 #define _SVID_SOURCE 1
 
+
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -30,12 +31,12 @@ int do_launch(int argc, char** argv){
     }
   }
   
-  wait(&status);
+//  wait(&status);
 
  //2. relative path input = currentDIR/input
  //3. resolved path input = PATH[i]/input
-  if(status)
-    return 1;  
+//  if(status)
+//    return 1;  
  
   return 0;
  
@@ -67,20 +68,20 @@ int do_launch_resol(char* buf, int argc, char** argv){
       status = execv(argv[0], argv);
       if (status == -1)
         exit(1);
-    } else {
+    }/* else {
       wait(&status);
 
       if(status == 0)
         break;//if success
-    }
+    }*/
   }
   for(int i = 0; i<5 ; i++){
     free(PATH[i]);
   }
  
-  if(status)
+  /*if(status)
     return 1;
-
+*/
   return 0;
 }
 int do_ls(int argc, char** argv) {
