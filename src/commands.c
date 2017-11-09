@@ -1,7 +1,6 @@
 #define _BSD_SOURCE 1
 #define _SVID_SOURCE 1
 
-
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -14,30 +13,72 @@
 #include "commands.h"
 #include "utils.h"
 
+int do_bg(int argc, char** argv){
+
+  int pid;
+  int count = 0;
+  int status;
+  char** argv2 = malloc(8192); //to get rid of &
+  char* PATH[5]; //EnvPATH
+
+  for(int i=0; i<5;i++){
+    PATH[i] = malloc(256);
+  }
+  for(int i = 0; i<argc-1; i++){//argc-1
+    argv2[i] = malloc(512);
+    strcpy(argv2[i], argv[i]);
+  }
+
+  
+  if(strncmp(argv2[0], "/", 1))//error could occur
+  {
+    strcpy(PATH[0], "/usr/local/bin/");
+    strcpy(PATH[1], "/usr/bin/");
+    strcpy(PATH[2], "/bin/");
+    strcpy(PATH[3], "/usr/sbin/");
+    strcpy(PATH[4], "/sbin/");
+  }
+  for(int i = 0; i<5;i++){
+    strcat(PATH[i], argv[0]);
+    strcpy(argv2[0], PATH[i]);
+    
+    pid = fork();
+    if(pid == 0){
+      execv(argv2[0], argv2);     
+      exit(EXIT_FAILURE);
+    }
+/*    waitpid(0, &status, WNOHANG); 
+    if(status)
+      break;*/
+
+    free(PATH[i]);
+  }
+  free(argv2);
+  
+  return pid;
+}
 int do_launch(int argc, char** argv){
 
 //  char curdir[PATH_MAX];
 //  getcwd(curdir, PATH_MAX);
-
 //  char* PATH[5] = {"/usr/local/bin/", "/usr/bin/",
 //                 "/bin/", "/usr/sin/", "/sbin/"};
   int status = 0;
  //three different cases
  //1. absolute path input = input
   if(fork()==0){
-    status = execv(argv[0], argv);
-    if(status == -1){
-      exit(1);
-    }
+    execv(argv[0], argv);
+    exit(1);
   }
   
-//  wait(&status);
+  wait(&status);
 
  //2. relative path input = currentDIR/input
  //3. resolved path input = PATH[i]/input
 //  if(status)
 //    return 1;  
- 
+  if(status)
+    return -1;
   return 0;
  
 }
@@ -56,32 +97,36 @@ int do_launch_resol(char* buf, int argc, char** argv){
   strcpy(PATH[4], "/sbin/");
   
   int status = 0;
-
+  int pid;
+  int exitVal;
+  int exitStat;
+  int count;
   for(int i=0; i<5;i++){
     strcat(PATH[i], buf);
-    //printf("%s\n", PATH[i]); // debug
   }
   
-  for(int i=0; i<5; i++){
-    mysh_parse_command(PATH[i], &argc, &argv);
+  for(count=0; count<5; count++){
+    mysh_parse_command(PATH[count], &argc, &argv);
     if(fork()==0){
-      status = execv(argv[0], argv);
-      if (status == -1)
-        exit(1);
-    }/* else {
-      wait(&status);
+      execv(argv[0], argv);
+      exit(EXIT_FAILURE);
+    }
+    
+    pid = wait(&status);
+    exitVal = WEXITSTATUS(status);
+    exitStat = WIFEXITED(status);
 
-      if(status == 0)
-        break;//if success
-    }*/
+    
+    if(!exitVal)
+      break;
   }
   for(int i = 0; i<5 ; i++){
     free(PATH[i]);
   }
  
-  /*if(status)
-    return 1;
-*/
+  if(count == 5)
+    return -1;
+
   return 0;
 }
 int do_ls(int argc, char** argv) {
