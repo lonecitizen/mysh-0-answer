@@ -4,42 +4,35 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <signal.h>
-
+#include <unistd.h>
 #include "commands.h"
 #include "utils.h"
+
+
 static void sig_chld(int signo);
 static void release_argv(int argc, char*** argv);
-int bgPID = 0;
+static void sig_bg(int signo);
+static void fg_sig(int signo);
 
+int bgflag = 0;
+int bgPID = 0;
 int main()
 {
   char buf[8096];
   int argc;
   char** argv;
-  int status;
-  
-  
-//  signal(SIGCHLD, sig_chld);
-    
-    
- /*  struct sigaction sa;
-  sa.sa_handler = handler;
-  sa.sa_flags = SA_NODEFER | SA_NOCLDWAIT;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_restorer = NULL;
-  sigaction(SIGCHLD, &sa, NULL);
-*/
+  int status;  
+
+  signal(SIGCHLD, sig_bg);
+  signal(SIGUSR1, SIG_IGN);    
 
   while (1) {
-    //signal(SIGCHLD, sig_chld);
-   // printf("\033[1;92mJino's Shell $ \033[0m");
+
+    buf[0] = 0;
     fgets(buf, 8096, stdin);
-    signal(SIGCHLD, sig_chld);
+
     mysh_parse_command(buf, &argc, &argv);
 
-//    signal(SIGCHLD, sig_chld);
-//    printf("signal returns %d\n", status);
-    
     if (strcmp(argv[0], "") == 0) {
       goto release_and_continue;
     } else if (strcmp(argv[0], "cd") == 0 ) {
@@ -49,34 +42,43 @@ int main()
 /*    } else if (strcmp(argv[0], "pwd") == 0) {
       if (do_pwd(argc, argv)) {
         fprintf(stderr, "pwd: Invalid arguments\n");
-      }
-    } else if (strcmp(argv[0], "ls") == 0 && argc == 1) {
+      }*/
+    } else if (strcmp(argv[0], "ls2") == 0 && argc == 1) {
       if (do_ls(argc, argv)) {
         fprintf(stderr, "ls: Invalid arguments\n");
-      }*/
+      }
     } else if (strcmp(argv[0], "exit") == 0) {
       goto release_and_exit;
-    } else if (strcmp(argv[argc-1], "&") == 0) {
-      printf("before bg\n");
-      bgPID = do_bg(argc, argv);
-      printf("%d\n", bgPID);
-//      signal(SIGCHLD, sig_chld);
-      //goto release_and_continue;
-    } else if (strcmp(argv[0], "fg") == 0){
-      if(bgPID){
-        printf("%d running\n", bgPID);
-        wait(&status);
-        bgPID = 0;
-      }
-    } else {
-      if(do_launch(argc, argv)){
-        if(do_launch_resol(buf, argc, argv)){
-          fprintf(stderr, "Process creation failed\n");
+    } else if (strcmp(argv[argc-1], "&") == 0 && bgflag != 1) {
+      free(argv[argc-1]);
+      argv[argc-1] = NULL;
+      argc--;
+      bgflag = 1;
+      
+      if(fork() == 0){
+        signal(SIGUSR1, fg_sig);
+        printf("%d\n", getpid());
+        if(do_launch(argc, argv) == -1){
+          fprintf(stderr, "%d failed\n", getpid());
+          exit(1);
+        }
+        else{
+          exit(2);
         }
       }
-      //goto release_and_continue;
+      
+    } else if (strcmp(argv[0], "fg") == 0 && bgflag == 1){
+      kill(0, SIGUSR1);
+      wait(&status);
+      bgflag = 0;
+      
+    } else if (bgflag==1 && argv[argc-1] == "&"){
+      printf("Background Process already exits\n");  
+    } else{
+      if(do_launch(argc, argv) == -1)
+        fprintf(stderr, "Process creation failed\n");
     }
-//    signal(SIGCHLD, sig_chld);
+
 release_and_continue:
     release_argv(argc, &argv);
     continue;
@@ -99,11 +101,23 @@ static void sig_chld(int signo){
   int pid;
   int status;
   
-  while((pid = waitpid(-1, &status, WNOHANG))>0)
+  while((pid = waitpid(-1, &status, WNOHANG))>0);
+
+  return;
+}
+static void sig_bg(int signo){
+  int pid;
+  int status;
+
+  while((bgPID = waitpid(-1, &status, WNOHANG))>0)
   {
-    if(pid == bgPID)
-      printf("%d done \n", pid);
-    else kill(-1, signo);
-  } 
-   return;
+    if(WIFEXITED(status))
+      printf("%d done\n", bgPID);
+    bgflag = 0;
+  }  
+  return;
+}
+static void fg_sig(int signo){  
+  printf("%d running\n", getpid());
+  signal(SIGUSR1, SIG_DFL);
 }

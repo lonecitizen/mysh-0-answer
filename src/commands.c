@@ -1,6 +1,7 @@
 #define _BSD_SOURCE 1
 #define _SVID_SOURCE 1
 
+
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -13,121 +14,65 @@
 #include "commands.h"
 #include "utils.h"
 
-int do_bg(int argc, char** argv){
+
+int do_launch(int argc, char** argv){
 
   int pid;
-  int count = 0;
   int status;
-  char** argv2 = malloc(8192); //to get rid of &
   char* PATH[5]; //EnvPATH
-
+  struct dirent **dirs;
+  struct stat fstat;
+  int dirnum;
+  
   for(int i=0; i<5;i++){
     PATH[i] = malloc(256);
   }
-  for(int i = 0; i<argc-1; i++){//argc-1
-    argv2[i] = malloc(512);
-    strcpy(argv2[i], argv[i]);
-  }
 
-  
-  if(strncmp(argv2[0], "/", 1))//error could occur
+  if(strncmp(argv[0], "/", 1))
   {
     strcpy(PATH[0], "/usr/local/bin/");
     strcpy(PATH[1], "/usr/bin/");
     strcpy(PATH[2], "/bin/");
     strcpy(PATH[3], "/usr/sbin/");
     strcpy(PATH[4], "/sbin/");
-  }
-  for(int i = 0; i<5;i++){
-    strcat(PATH[i], argv[0]);
-    strcpy(argv2[0], PATH[i]);
-    
+  
+    for(int j=0; j<5; j++){
+      dirnum = scandir(PATH[j], &dirs, NULL, alphasort);
+      for(int i=0; i<dirnum;i++){
+        lstat(dirs[i]->d_name, &fstat);
+        if(!strcmp(dirs[i]->d_name, argv[0]) && (fstat.st_mode & S_IXUSR) == S_IXUSR){
+          strcat(PATH[j], argv[0]);
+          strcpy(argv[0], PATH[j]);
+
+          pid = fork();
+          if(pid == 0){
+            execv(argv[0], argv);
+            perror("Process failure");
+            exit(EXIT_FAILURE); 
+          }
+          pid = wait(&status);
+          free(PATH[j]);
+
+          return pid;
+        }
+      }
+    }
+  }else{
     pid = fork();
     if(pid == 0){
-      execv(argv2[0], argv2);     
-      exit(EXIT_FAILURE);
-    }
-/*    waitpid(0, &status, WNOHANG); 
-    if(status)
-      break;*/
-
-    free(PATH[i]);
-  }
-  free(argv2);
-  
-  return pid;
-}
-int do_launch(int argc, char** argv){
-
-//  char curdir[PATH_MAX];
-//  getcwd(curdir, PATH_MAX);
-//  char* PATH[5] = {"/usr/local/bin/", "/usr/bin/",
-//                 "/bin/", "/usr/sin/", "/sbin/"};
-  int status = 0;
- //three different cases
- //1. absolute path input = input
-  if(fork()==0){
-    execv(argv[0], argv);
-    exit(1);
-  }
-  
-  wait(&status);
-
- //2. relative path input = currentDIR/input
- //3. resolved path input = PATH[i]/input
-//  if(status)
-//    return 1;  
-  if(status)
-    return -1;
-  return 0;
- 
-}
-int do_launch_resol(char* buf, int argc, char** argv){
-
-  char* PATH[5];
-
-  for(int i=0;i<5;i++){
-    PATH[i] = malloc(256);
-  }
-  
-  strcpy(PATH[0], "/usr/local/bin/");
-  strcpy(PATH[1], "/usr/bin/");
-  strcpy(PATH[2], "/bin/");
-  strcpy(PATH[3], "/usr/sbin/");
-  strcpy(PATH[4], "/sbin/");
-  
-  int status = 0;
-  int pid;
-  int exitVal;
-  int exitStat;
-  int count;
-  for(int i=0; i<5;i++){
-    strcat(PATH[i], buf);
-  }
-  
-  for(count=0; count<5; count++){
-    mysh_parse_command(PATH[count], &argc, &argv);
-    if(fork()==0){
       execv(argv[0], argv);
       exit(EXIT_FAILURE);
     }
-    
     pid = wait(&status);
-    exitVal = WEXITSTATUS(status);
-    exitStat = WIFEXITED(status);
+    for(int i = 0; i<5; i++)
+      free(PATH[i]);
 
-    
-    if(!exitVal)
-      break;
+    return pid;
   }
-  for(int i = 0; i<5 ; i++){
+  for(int i = 0; i<5; i++)
     free(PATH[i]);
-  }
  
-  if(count == 5)
-    return -1;
-
-  return 0;
+  return -1;
 }
 int do_ls(int argc, char** argv) {
   if (!validate_ls_argv(argc, argv))
@@ -208,7 +153,7 @@ int validate_pwd_argv(int argc, char** argv) {
 }
 int validate_ls_argv(int argc, char** argv) {
 
-  if (strcmp(argv[0], "ls") != 0) return 0;
+  if (strcmp(argv[0], "ls2") != 0) return 0;
 
   return 1;
 }
