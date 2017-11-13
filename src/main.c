@@ -1,3 +1,4 @@
+#define _POSIX_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,7 @@ static void fg_sig(int signo);
   unsigned short int family;
   char path[PATH_MAX];
 };*/
+
 #define SOCK_PATH "tpf_unix_sock.server"
 #define SERVER_PATH "tpf_unix_sock.server"
 #define CLIENT_PATH "tpf_unix_sock.client"
@@ -39,8 +41,8 @@ int main()
 //  pthread_t th[5];
   signal(SIGCHLD, sig_bg);
   signal(SIGUSR1, SIG_IGN);    
-
-
+  signal(SIGINT, SIG_IGN);
+  signal(SIGTSTP, SIG_IGN);
 
   while (1) {
 
@@ -147,9 +149,9 @@ static void sig_bg(int signo){
   int pid;
   int status;
 
-  while((bgPID = waitpid(-1, &status, WNOHANG))>0)
+  while((bgPID = waitpid(0, &status, WNOHANG))>0)
   {
-    if(WIFEXITED(status))
+    //if(WIFEXITED(status))
       printf("%d done\n", bgPID);
     bgflag = 0;
   }  
@@ -204,6 +206,7 @@ static void client(char* temp2){
   fflush(stdin);
   fputs(data, stdin);
   do_launch(argc_client, argv_client);  
+
 }
 void* thread_listen(){
 
