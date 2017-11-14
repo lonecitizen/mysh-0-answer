@@ -1,4 +1,6 @@
+//dup2 understand, socket, done
 #define _POSIX_SOURCE
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +13,7 @@
 #include <pthread.h>
 #include "commands.h"
 #include "utils.h"
-
+#include <fcntl.h>
 static void server(char* temp);
 static void client(char* temp2);
 void* thread_listen();
@@ -39,13 +41,14 @@ int main()
   char* temp;
   char* temp2;
 //  pthread_t th[5];
-  signal(SIGCHLD, sig_bg);
+//  signal(SIGCHLD, sig_bg); 
   signal(SIGUSR1, SIG_IGN);    
   signal(SIGINT, SIG_IGN);
   signal(SIGTSTP, SIG_IGN);
 
   while (1) {
 
+    signal(SIGCHLD, sig_bg);
     buf[0] = 0;
     fgets(buf, 8096, stdin);
 
@@ -61,13 +64,13 @@ int main()
           server(temp);
           exit(2);
         } 
-
+        sleep(1);
         if(fork() == 0){
           client(temp2);
           exit(2);          
         }
         //send function should be made
-        
+        goto release_and_continue;  
       }
     }
     
@@ -81,7 +84,7 @@ int main()
       if (do_pwd(argc, argv)) {
         fprintf(stderr, "pwd: Invalid arguments\n");
       if (do_pwd(argc, argv)) {
-      if (do_pwd(argc, argv)) {
+      iif (do_pwd(argc, argv)) {
       }*/
     } else if (strcmp(argv[0], "ls2") == 0 && argc == 1) {
       if (do_ls(argc, argv)) {
@@ -149,13 +152,12 @@ static void sig_bg(int signo){
   int pid;
   int status;
 
-  while((bgPID = waitpid(0, &status, WNOHANG))>0)
+  while((bgPID = waitpid(-1, &status, WNOHANG))>0)
   {
-    //if(WIFEXITED(status))
+    if(WIFEXITED(status))
       printf("%d done\n", bgPID);
     bgflag = 0;
   }  
-  return;
 }
 static void fg_sig(int signo){  
   printf("%d running\n", getpid());
@@ -167,80 +169,165 @@ static void server(char* temp){
   int argc_server;
   
   mysh_parse_command(temp, &argc_server, &argv_server);
-  do_launch(argc_server, argv_server);//argument should be passed
   
   pthread_t server_thread;
   
   pthread_create(&server_thread, NULL, thread_listen, NULL);
+  
+  do_launch(argc_server, argv_server);//where should it go
    
   pthread_exit(NULL);
 }
 static void client(char* temp2){
   char** argv_client;
   int argc_client;
+  int oldstdin;
   int client_sock, rc, len;
   struct sockaddr_un server_sockaddr;
   struct sockaddr_un client_sockaddr;
-  char* data;
+  char data[512];//malloc
+  char* temp;
+
+  memset(data, 0, 512);
   
   mysh_parse_command(temp2, &argc_client, &argv_client);
 
+/*  for(int i=0; i<argc_client; i++){
+    if (strcmp(argv_client[i], "|") == 0){
+      temp = strtok(temp2, "|");
+      temp2 = strtok(NULL, "\n");
+      
+      if(fork() == 0){
+        server(temp);
+        exit(2);
+      } 
+
+      if(fork() == 0){
+        client(temp2);
+        exit(2);          
+      }    
+    }
+  }*/
+  
   memset(&server_sockaddr, 0, sizeof(struct sockaddr_un));
   memset(&client_sockaddr, 0, sizeof(struct sockaddr_un));
-  memset(data, 0, 1000000);
 
   client_sock = socket(AF_UNIX, SOCK_STREAM, 0);
-  
+  if (client_sock == -1){
+    printf("SOCKET ERROR\n");
+    exit(1);
+  }
   client_sockaddr.sun_family =AF_UNIX;
   strcpy(client_sockaddr.sun_path, CLIENT_PATH);
   len = sizeof(client_sockaddr);
 
   unlink(CLIENT_PATH);
-  bind(client_sock, (struct sockaddr *) &client_sockaddr, len);
-
+  rc = bind(client_sock, (struct sockaddr *) &client_sockaddr, len);
+  if(rc == -1){
+    printf("BIND ERROR\n");
+    close(client_sock);
+    exit(1);
+  }
   server_sockaddr.sun_family = AF_UNIX;
   strcpy(server_sockaddr.sun_path, SERVER_PATH);
-  connect(client_sock, (struct sockaddr *) &server_sockaddr, len);
+  rc = connect(client_sock, (struct sockaddr *) &server_sockaddr, len);
+  if(rc == -1){
+    printf("CONNECT ERROR\n");
+    close(client_sock);
+    exit(1);
+  }
 
-  recv(client_sock, data, sizeof(data), 0);
+  rc = recv(client_sock, data, sizeof(data), 0);
+  if(rc == -1){
+    printf("RECEIVE ERROR\n");
+    close(client_sock);
+    exit(1);
+  }
   fflush(stdin);
-  fputs(data, stdin);
+  oldstdin = dup(0);
+  write(0, data, 256);
+  //dup2(client_sock, 0);//fix
+  
   do_launch(argc_client, argv_client);  
-
+  
+  dup2(oldstdin, 0);
+  close(oldstdin);
+  close(client_sock);
 }
 void* thread_listen(){
 
   int server_sock, client_sock, rc, len;
   struct sockaddr_un server_sockaddr;
   struct sockaddr_un client_sockaddr;
-  char* data;
+  char data[512];
   int backlog = 10;
-
+  int oldstdout;
   memset(&server_sockaddr, 0, sizeof(struct sockaddr_un));
   memset(&client_sockaddr, 0, sizeof(struct sockaddr_un));
-  memset(data, 0, 1000000);
+  memset(data, 0, 512);
 
   server_sock = socket(AF_UNIX, SOCK_STREAM, 0);
- 
+  if(server_sock == -1){
+    printf("SOCKET ERROR\n");
+    exit(1);
+  }
   server_sockaddr.sun_family = AF_UNIX;
   strcpy(server_sockaddr.sun_path, SOCK_PATH);
   len = sizeof(server_sockaddr);
 
   unlink(SOCK_PATH);
-  bind(server_sock, (struct sockaddr *) &server_sockaddr, len);
-  dup2(client_sock, 1); //not sure
+  rc = bind(server_sock, (struct sockaddr *) &server_sockaddr, len);
+  if (rc == -1){
+    printf("BIND ERROR\n");
+    close(server_sock);
+    exit(1);
+  } 
   
-  read(client_sock, data, 1000000);
-  
-  listen(server_sock, backlog);
+  rc = listen(server_sock, backlog);
+  if (rc == -1){
+    printf("LISTEN ERROR\n");
+    close(server_sock);
+    exit(1);
+  } 
+  printf("socket listening...\n");
 
   client_sock = accept(server_sock, (struct sockaddr *) &client_sockaddr, &len);
-  
+  if (client_sock  == -1){
+    printf("ACCEPT ERROR\n");
+    close(server_sock);
+    close(client_sock);
+    exit(1);
+  }else{
+  printf("accepted by server...\n"); 
+  }
   len = sizeof(client_sockaddr);
-  getpeername(client_sock, (struct sockaddr *) &client_sockaddr, &len);
 
-  send(client_sock, data, strlen(data), 0);
-
+  rc = getpeername(client_sock, (struct sockaddr *) &client_sockaddr, &len);
+  if (rc == -1){
+    printf("GETPEERNAME ERROR\n");
+    close(server_sock);
+    close(client_sock);
+    exit(1);
+  }else{
+    printf("Client socket filepath: %s\n", client_sockaddr.sun_path);
+  }
+  
+    
+  oldstdout = dup(1);
+  dup2(server_sock , 1);
+  read(1, data, 256);//addition
+  rc = send(client_sock, data, strlen(data), 0);
+  if (rc == -1){
+    printf("SEND ERROR\n");
+    close(server_sock);
+    close(client_sock);
+    exit(1);
+  }else{
+  printf("Data sent\n");
+  } 
+  dup2(oldstdout, 1);
+  close(oldstdout);
+  
   close(client_sock);
   close(server_sock);
 
