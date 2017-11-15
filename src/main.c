@@ -57,8 +57,7 @@ int main()
       if (strcmp(argv[i], "|") == 0){
         temp = strtok(buf, "|");
         temp2 = strtok(NULL, "\n");
-        printf("formoon?"); 
-  //      pthread_create(&th[0], NULL, server, NULL);
+
         if(fork() == 0){
           char** argv_server;
  	  int argc_server;
@@ -69,7 +68,7 @@ int main()
   	  int backlog = 10;
           pipe_flag = 1;
   	  mysh_parse_command(temp, &argc_server, &argv_server);
-    	  printf("%s\n", temp);
+
   	  memset(&server_sockaddr, 0, sizeof(struct sockaddr_un));
   	  memset(&client_sockaddr, 0, sizeof(struct sockaddr_un));
   	  memset(data, 0, 512);
@@ -99,8 +98,6 @@ int main()
    	    close(server_sock);
    	    exit(1);
  	  } 
- 	  printf("socket listening...\n");
-
 
  	  pthread_t thread;
           pthread_create(&thread, NULL, client, NULL);
@@ -111,10 +108,9 @@ int main()
    	    close(server_sock);
  	    close(client_sock);
    	    exit(1);
- 	  }else{
-	  printf("accepted by server...\n"); 
  	  }
- 	  len = sizeof(client_sockaddr);
+
+          len = sizeof(client_sockaddr);
 
  	  rc = getpeername(client_sock, (struct sockaddr *) &client_sockaddr, &len);
  	  if (rc == -1){
@@ -122,10 +118,7 @@ int main()
    	    close(server_sock);
     	    close(client_sock);
    	    exit(1);
- 	  }else{
-    	    printf("Client socket filepath: %s\n", client_sockaddr.sun_path);
- 	  }
-  
+ 	  }  
     
 	  int fd = dup(1);
 	  dup2(client_sock, 1);
@@ -246,23 +239,6 @@ void* client(){
   memset(data, 0, 512);
   
   mysh_parse_command(temp2, &argc_client, &argv_client);
-  printf("%s\n", temp2);
-/*  for(int i=0; i<argc_client; i++){
-    if (strcmp(argv_client[i], "|") == 0){
-      temp = strtok(temp2, "|");
-      temp2 = strtok(NULL, "\n");
-      
-      if(fork() == 0){
-        server(temp);
-        exit(2);
-      } 
-
-      if(fork() == 0){
-        client(temp2);
-        exit(2);          
-      }    
-    }
-  }*/
   
   memset(&server_sockaddr, 0, sizeof(struct sockaddr_un));
   memset(&client_sockaddr, 0, sizeof(struct sockaddr_un));
