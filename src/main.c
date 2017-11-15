@@ -30,6 +30,7 @@ static void fg_sig(int signo);
 #define CLIENT_PATH "tpf_unix_sock.client"
 char* temp2;
 int bgflag = 0;
+int pipe_flag = 0;
 int bgPID = 0;
 int main()
 {
@@ -66,7 +67,7 @@ int main()
 	  struct sockaddr_un client_sockaddr;
        	  char data[512];
   	  int backlog = 10;
- 
+          pipe_flag = 1;
   	  mysh_parse_command(temp, &argc_server, &argv_server);
     	  printf("%s\n", temp);
   	  memset(&server_sockaddr, 0, sizeof(struct sockaddr_un));
@@ -130,7 +131,7 @@ int main()
 	  dup2(client_sock, 1);
 
 	  do_launch(argc_server, argv_server);
-
+          pipe_flag = 0;
  	  dup2(fd, 1);
 	  close(fd);
   
@@ -296,7 +297,9 @@ void* client(){
   dup2(client_sock, 0);
   
   close(client_sock);
-
+  
+//  sleep(1);//in what condition makes this program work?
+  while(pipe_flag){}
   do_launch(argc_client, argv_client);  
   
   dup2(fd2, 0);
